@@ -63,7 +63,6 @@ function color_main.new(color_type, ...)
 			error("invalid HEX value, expected a string ('#RRGGBB' or 'RRGGBB')")
 		end
 		hex_value = color_value[1]
-		color_value = {hex_to_rgb(color_value[1])}
 	else
 		error('invalid color type (RGB, HSV, HEX)')
 	end
@@ -71,13 +70,13 @@ function color_main.new(color_type, ...)
 	local data = {
 		color_type = color_type,
 		color_value = color_value,
-		hex_value = color_type == 'hex' and hex_value or nil
+		hex_value = hex_value
 	}
 
 	return setmetatable(data, color_main)
 end
 
-function color_main:set(color_type, ...) -- copy and paste :money:
+function color_main:set(color_type, ...)
 	local color_value = {...}
 	color_type = string.lower(color_type)
 	local hex_value = nil
@@ -95,26 +94,28 @@ function color_main:set(color_type, ...) -- copy and paste :money:
 			error("invalid HEX value, expected a string ('#RRGGBB' or 'RRGGBB')")
 		end
 		hex_value = color_value[1]
-		color_value = {hex_to_rgb(color_value[1])}
+		color_value = {hex_to_rgb(hex_value)} -- Convert HEX to RGB for internal storage
 	else
 		error('invalid color type (RGB, HSV, HEX)')
 	end
 
 	self.color_type = color_type
 	self.color_value = color_value
-	self.hex_value = color_type == 'hex' and hex_value or nil
+	self.hex_value = hex_value
 end
 
 function color_main:get_color()
 	return self.color_value
 end
 
-function color_main:to_color3() -- i love roblox, best platform!
-	if self.color_type == 'rgb' or self.color_type == 'hex' then
+function color_main:to_color3()
+	if self.color_type == 'rgb' then
 		return Color3.new(table.unpack(self.color_value))
 	elseif self.color_type == 'hsv' then
 		local h, s, v = table.unpack(self.color_value)
 		return Color3.fromHSV(h / 360, s, v)
+	elseif self.color_type == 'hex' then
+		return Color3.fromHex(self.color_value[1])
 	end
 
 	return nil
@@ -140,6 +141,17 @@ function color_main.__eq(a, b)
 	return true
 end
 
+function color_main:lerp(color, alpha)
+	assert(self.color_type == color.color_type, "Color types must match for interpolation.")
+    local result = {}
+
+    for i = 1, #self.color_value do
+        result[i] = self.color_value[i] + alpha * (color.color_value[i] - self.color_value[i])
+    end
+
+    return color_main.new(self.color_type, table.unpack(result))
+end
+
 function color_main.__sub(a, b)
 	assert(a.color_type == b.color_type, "color types must match for subtraction")
 	local result = {}
@@ -160,6 +172,55 @@ function color_main.__add(a, b)
 	end
 
 	return color_main.new(a.color_type, table.unpack(result))
+end
+
+function color_main.__mul(a, b)
+	local result = {}
+	if typeof(a) == "number" then
+
+		for i = 1, #b.color_value do
+			result[i] = math.clamp(b.color_value[i] * a, 0, 1)
+		end
+
+		return color_main.new(b.color_type, table.unpack(result))
+	elseif typeof(b) == "number" then
+		for i = 1, #a.color_value do
+			result[i] = math.clamp(a.color_value[i] * b, 0, 1)
+		end
+
+		return color_main.new(a.color_type, table.unpack(result))
+	else
+		assert(a.color_type == b.color_type, "color types must match for multiplication")
+
+		for i = 1, #a.color_value do
+			result[i] = math.clamp(a.color_value[i] * b.color_value[i], 0, 1)
+		end
+
+		return color_main.new(a.color_type, table.unpack(result))
+	end
+end
+
+function color_main.__div(a, b)
+	local result = {}
+
+	if typeof(a) == "number" then
+		error("cannot divide a number by a color")
+	elseif typeof(b) == "number" then
+
+		for i = 1, #a.color_value do
+			result[i] = math.clamp(a.color_value[i] / b, 0, 1)
+		end
+
+		return color_main.new(a.color_type, table.unpack(result))
+	else
+		assert(a.color_type == b.color_type, "color types must match for division")
+
+		for i = 1, #a.color_value do
+			result[i] = math.clamp(a.color_value[i] / (b.color_value[i] ~= 0 and b.color_value[i] or 1), 0, 1)
+		end
+
+		return color_main.new(a.color_type, table.unpack(result))
+	end
 end
 
 return color_main
